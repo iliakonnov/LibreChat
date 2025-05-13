@@ -11,6 +11,7 @@ const {
   // Structured Tools
   DALLE3,
   FluxAPI,
+  createReplicateTools,
   OpenWeather,
   StructuredSD,
   StructuredACS,
@@ -170,6 +171,18 @@ const loadTools = async ({
         gl: 'us',
       });
     },
+    replicate: async (_toolContextMap) => {
+      const authFields = getAuthFields('replicate');
+      const authValues = await loadAuthValues({ userId: user, authFields });
+      return createReplicateTools({
+        ...authValues,
+        isAgent: !!agent,
+        userId: user,
+        fileStrategy: options.fileStrategy,
+        processFileURL: options.processFileURL,
+        returnMetadata: options.returnMetadata,
+      });
+    },
     youtube: async (_toolContextMap) => {
       const authFields = getAuthFields('youtube');
       const authValues = await loadAuthValues({ userId: user, authFields });
@@ -225,6 +238,7 @@ const loadTools = async ({
   const toolOptions = {
     flux: imageGenOptions,
     dalle: imageGenOptions,
+    replicate: imageGenOptions,
     'stable-diffusion': imageGenOptions,
     serpapi: { location: 'Austin,Texas,United States', hl: 'en', gl: 'us' },
   };

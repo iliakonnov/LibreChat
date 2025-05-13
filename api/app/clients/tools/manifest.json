@@ -192,5 +192,20 @@
         "description": "Provide your Flux API key from your user profile."
       }
     ]
+  },
+  {
+    "name": "Replicate",
+    "pluginKey": "replicate",
+    "toolkit": true,
+    "description": "Run AI models on Replicate.com including image generation models and query model input schemas.",
+    "icon": "https://replicate.com/static/favicon.ico",
+    "isAuthRequired": "true",
+    "authConfig": [
+      {
+        "authField": "REPLICATE_API_KEY",
+        "label": "Your Replicate API Token",
+        "description": "Provide your Replicate API token from your account settings."
+      }
+    ]
   }
 ]
