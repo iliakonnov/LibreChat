@@ -197,81 +197,41 @@ class ReplicateAPI extends Tool {
   }
 
   async handleMultipleImageOutput(imageUrls) {
-    if (this.isAgent) {
-      try {
-        // Fetch all images and convert to base64
-        const fetchOptions = {};
-        if (process.env.PROXY) {
-          fetchOptions.agent = new HttpsProxyAgent(process.env.PROXY);
-        }
-
-        const content = [];
-        for (const imageUrl of imageUrls) {
-          const imageResponse = await fetch(imageUrl, {
-            headers: {
-              Authorization: `Token ${this.apiKey || this.getApiKey()}`,
-            },
-            ...fetchOptions,
-          });
-          const arrayBuffer = await imageResponse.arrayBuffer();
-          const base64 = Buffer.from(arrayBuffer).toString('base64');
-          content.push({
-            type: ContentTypes.IMAGE_URL,
-            image_url: {
-              url: `data:image/png;base64,${base64}`,
-            },
-          });
-        }
-
-        const response = [
-          {
-            type: ContentTypes.TEXT,
-            text: displayMessage,
-          },
-        ];
-        return [response, { content }];
-      } catch (error) {
-        logger.error('Error processing images for agent:', error);
-        return this.returnValue(`Failed to process the images. ${error.message}`);
-      }
-    }
-
     try {
-      const results = [];
+      // Fetch all images and convert to base64
+      const fetchOptions = {};
+      if (process.env.PROXY) {
+        fetchOptions.agent = new HttpsProxyAgent(process.env.PROXY);
+      }
+
+      const content = [];
       for (const imageUrl of imageUrls) {
-        const imageName = `img-${uuidv4()}.png`;
-        logger.debug('[ReplicateAPI] Saving image:', imageUrl);
-        const result = await this.processFileURL({
-          fileStrategy: this.fileStrategy,
-          userId: this.userId,
-          URL: imageUrl,
-          fileName: imageName,
-          basePath: 'images',
-          context: FileContext.image_generation,
+        const imageResponse = await fetch(imageUrl, {
           headers: {
             Authorization: `Token ${this.apiKey || this.getApiKey()}`,
           },
+          ...fetchOptions,
         });
-        logger.debug('[ReplicateAPI] Image saved to path:', result.filepath);
-        results.push(result);
+        const arrayBuffer = await imageResponse.arrayBuffer();
+        const base64 = Buffer.from(arrayBuffer).toString('base64');
+        content.push({
+          type: ContentTypes.IMAGE_URL,
+          image_url: {
+            url: `data:image/png;base64,${base64}`,
+          },
+        });
       }
 
-      // Store all results
-      this.result = results;
-
-      // Return formatted results
-      if (this.returnMetadata) {
-        return this.returnValue(results);
-      } else {
-        const markdownImages = results
-          .map((result) => this.wrapInMarkdown(result.filepath))
-          .join('\n');
-        return this.returnValue(markdownImages);
-      }
+      const response = [
+        {
+          type: ContentTypes.TEXT,
+          text: displayMessage,
+        },
+      ];
+      return [response, { content }];
     } catch (error) {
-      const details = this.getDetails(error?.message ?? 'No additional error details.');
-      logger.error('Error while saving the images:', details);
-      return this.returnValue(`Failed to save the images locally. ${details}`);
+      logger.error('Error processing images for agent:', error);
+      return this.returnValue(`Failed to process the images. ${error.message}`);
     }
   }
 }
@@ -364,6 +324,7 @@ const createSchemaQueryTool = (fields = {}) => {
           .string()
           .describe('The model identifier on Replicate (format: "owner/model-name")'),
       }),
+      responseFormat: 'content_and_artifact',
     },
   );
 };
@@ -374,6 +335,10 @@ const createSchemaQueryTool = (fields = {}) => {
  * @returns {Array} - Array of Replicate tools
  */
 function createReplicateTools(fields = {}) {
+  if (!fields.isAgent) {
+    throw new Error('This tool is only available for agents.');
+  }
+
   const replicateAPI = new ReplicateAPI(fields);
   const schemaQueryTool = createSchemaQueryTool(fields);
 

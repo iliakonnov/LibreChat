@@ -907,7 +907,7 @@ export function validateVisionModel({
   return visionModels.concat(additionalModels).some((visionModel) => model.includes(visionModel));
 }
 
-export const imageGenTools = new Set(['dalle', 'dall-e', 'stable-diffusion', 'flux']);
+export const imageGenTools = new Set(['dalle', 'dall-e', 'stable-diffusion', 'flux', 'replicate']);
 
 /**
  * Enum for collections using infinite queries
