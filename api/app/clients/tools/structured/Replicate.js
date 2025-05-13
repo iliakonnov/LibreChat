@@ -229,6 +229,26 @@ class ReplicateAPI extends Tool {
     }
   }
 
+  /**
+   * Extracts and normalizes the mime type from an image URL
+   * @param {string} imageUrl - The URL of the image
+   * @returns {string} - The normalized mime type
+   */
+  getMimeType(imageUrl) {
+    const extension = imageUrl.match(/\.(png|jpe?g|gif|webp)$/i)?.[1]?.toLowerCase();
+
+    if (!extension) {
+      return 'png'; // Default fallback
+    }
+
+    // Normalize jpg to jpeg
+    if (extension === 'jpg') {
+      return 'jpeg';
+    }
+
+    return extension;
+  }
+
   async handleMultipleImageOutput(imageUrls) {
     try {
       // Fetch all images and convert to base64
@@ -250,7 +270,7 @@ class ReplicateAPI extends Tool {
         content.push({
           type: ContentTypes.IMAGE_URL,
           image_url: {
-            url: `data:image/png;base64,${base64}`,
+            url: `data:image/${this.getMimeType(imageUrl)};base64,${base64}`,
           },
         });
       }
@@ -341,6 +361,7 @@ const createSchemaQueryTool = (fields = {}) => {
           const inputSchema = schema.components.schemas.Input;
           const response = {
             inputSchema,
+            example: modelData.default_example.input,
             version: modelData.latest_version.id,
           };
           return returnValue(JSON.stringify(response, null, 2));
