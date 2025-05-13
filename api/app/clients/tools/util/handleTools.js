@@ -174,6 +174,25 @@ const loadTools = async ({
     replicate: async (_toolContextMap) => {
       const authFields = getAuthFields('replicate');
       const authValues = await loadAuthValues({ userId: user, authFields });
+      const imageFiles = options.tool_resources?.[EToolResources.image_edit]?.files ?? [];
+      let toolContext = '';
+      for (let i = 0; i < imageFiles.length; i++) {
+        const file = imageFiles[i];
+        if (!file) {
+          continue;
+        }
+        if (i === 0) {
+          toolContext =
+            'Image files provided in this request (their image IDs listed in order of appearance) available as image inputs:';
+        }
+        toolContext += `\n\t- ${file.file_id}`;
+        if (i === imageFiles.length - 1) {
+          toolContext += `\n\nInclude any you need in the \`input.image\` parameter when calling \`replicate\` (only if model does support image inputs). You may also include previously referenced or generated image IDs.`;
+        }
+      }
+      if (toolContext) {
+        _toolContextMap.replicate = toolContext;
+      }
       return createReplicateTools({
         ...authValues,
         isAgent: !!agent,
@@ -181,6 +200,7 @@ const loadTools = async ({
         fileStrategy: options.fileStrategy,
         processFileURL: options.processFileURL,
         returnMetadata: options.returnMetadata,
+        imageFiles,
       });
     },
     youtube: async (_toolContextMap) => {

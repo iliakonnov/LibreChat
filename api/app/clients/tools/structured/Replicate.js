@@ -4,7 +4,7 @@ const { v4: uuidv4 } = require('uuid');
 const { Tool } = require('@langchain/core/tools');
 const { tool } = require('@langchain/core/tools');
 const { HttpsProxyAgent } = require('https-proxy-agent');
-const { FileContext, ContentTypes } = require('librechat-data-provider');
+const { ContentTypes } = require('librechat-data-provider');
 const { logger } = require('~/config');
 
 const displayMessage =
@@ -27,6 +27,9 @@ class ReplicateAPI extends Tool {
     /** @type {boolean} **/
     this.isAgent = fields.isAgent;
     this.returnMetadata = fields.returnMetadata ?? false;
+
+    /** @type {Array} Image files provided for editing */
+    this.imageFiles = fields.imageFiles || [];
 
     if (fields.processFileURL) {
       /** @type {processFileURL} Necessary for output to contain all image metadata. */
@@ -79,6 +82,16 @@ class ReplicateAPI extends Tool {
     return `![generated image](${serverDomain}${imageUrl})`;
   }
 
+  /**
+   * Creates a URL for an image file using the server domain and file path
+   * @param {Object} file - The file object containing filepath
+   * @returns {string} - The full URL to the image
+   */
+  createImageUrl(file) {
+    const serverDomain = process.env.DOMAIN_SERVER || 'http://localhost:3080';
+    return `${serverDomain}/${file.filepath}`;
+  }
+
   returnValue(value) {
     if (this.isAgent === true && typeof value === 'string') {
       return [value, {}];
@@ -103,9 +116,22 @@ class ReplicateAPI extends Tool {
       throw new Error('Missing required field: input');
     }
 
+    // Clone the input to avoid modifying the original
+    const input = { ...data.input };
+
+    if (input.image) {
+      let fileId = input.image;
+      for (const file of this.imageFiles) {
+        if (file.file_id === fileId) {
+          input.image = this.createImageUrl(file);
+          logger.debug(`[ReplicateAPI] Replaced file_id ${fileId} with URL ${input.image}`);
+        }
+      }
+    }
+
     const payload = {
       version: data.model,
-      input: data.input,
+      input,
     };
 
     logger.debug('[ReplicateAPI] Running model with payload:', payload);
@@ -339,7 +365,10 @@ function createReplicateTools(fields = {}) {
     throw new Error('This tool is only available for agents.');
   }
 
-  const replicateAPI = new ReplicateAPI(fields);
+  const replicateAPI = new ReplicateAPI({
+    ...fields,
+    imageFiles: fields.imageFiles || [],
+  });
   const schemaQueryTool = createSchemaQueryTool(fields);
 
   return [replicateAPI, schemaQueryTool];
