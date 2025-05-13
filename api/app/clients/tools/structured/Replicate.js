@@ -6,6 +6,7 @@ const { tool } = require('@langchain/core/tools');
 const { HttpsProxyAgent } = require('https-proxy-agent');
 const { ContentTypes } = require('librechat-data-provider');
 const { logger } = require('~/config');
+const { getFiles } = require('~/models/File');
 
 const displayMessage =
   "Replicate displayed an image. All generated images are already plainly visible, so don't repeat the descriptions in detail. Do not list download links as they are available in the UI already. The user may download the images by clicking on them, but do not mention anything about downloading to the user.";
@@ -17,9 +18,6 @@ const displayMessage =
 class ReplicateAPI extends Tool {
   constructor(fields = {}) {
     super();
-
-    /** @type {boolean} Used to initialize the Tool without necessary variables. */
-    this.override = fields.override ?? false;
 
     this.userId = fields.userId;
     this.fileStrategy = fields.fileStrategy;
@@ -48,7 +46,9 @@ class ReplicateAPI extends Tool {
 
     // Define the schema for structured input
     this.schema = z.object({
-      model: z.string().describe('The model identifier on Replicate (format: "owner/model-name")'),
+      version: z
+        .string()
+        .describe('The model version on Replicate (as returned by `replicate_schema` tool)'),
       input: z.record(z.any()).describe('The input parameters for the model, varies by model type'),
     });
   }
@@ -108,8 +108,8 @@ class ReplicateAPI extends Tool {
     // Use provided API key for this request if available, otherwise use default
     const requestApiKey = this.apiKey || this.getApiKey();
 
-    if (!data.model) {
-      throw new Error('Missing required field: model');
+    if (!data.version) {
+      throw new Error('Missing required field: version');
     }
 
     if (!data.input) {
@@ -121,16 +121,23 @@ class ReplicateAPI extends Tool {
 
     if (input.image) {
       let fileId = input.image;
-      for (const file of this.imageFiles) {
-        if (file.file_id === fileId) {
-          input.image = this.createImageUrl(file);
-          logger.debug(`[ReplicateAPI] Replaced file_id ${fileId} with URL ${input.image}`);
-        }
+      const fetchedFiles = await getFiles(
+        {
+          user: this.userId,
+          file_id: { $eq: fileId },
+          height: { $exists: true },
+          width: { $exists: true },
+        },
+        {},
+        {},
+      );
+      for (const file of fetchedFiles) {
+        input.image = this.createImageUrl(file);
       }
     }
 
     const payload = {
-      version: data.model,
+      version: data.version,
       input,
     };
 
@@ -332,7 +339,11 @@ const createSchemaQueryTool = (fields = {}) => {
           schema.components.schemas.Input
         ) {
           const inputSchema = schema.components.schemas.Input;
-          return returnValue(JSON.stringify(inputSchema, null, 2));
+          const response = {
+            inputSchema,
+            version: modelData.latest_version.id,
+          };
+          return returnValue(JSON.stringify(response, null, 2));
         } else {
           return returnValue('Input schema not found in the model information.');
         }
@@ -367,7 +378,6 @@ function createReplicateTools(fields = {}) {
 
   const replicateAPI = new ReplicateAPI({
     ...fields,
-    imageFiles: fields.imageFiles || [],
   });
   const schemaQueryTool = createSchemaQueryTool(fields);
 
